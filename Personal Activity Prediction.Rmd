@@ -1,0 +1,118 @@
+---
+title: "Personal Activity Prediction"
+author: "Carlos Siri"
+date: "10/2/2016"
+output: html_document
+---
+
+#Background
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively.
+
+The goal of this analysis is to use the data from accelerometers on the belt, forearm, arm and dumbell of 6 participants. The participants were asked to perform barbell lifts correctly and incorrectly in 5 different ways. the data will be used to predict the exercise class (A, B, C, D, E) of the participants according to the measured variables. The definition of the classes are listed below.
+
+* Class A: Exercise perform according to the specifications
+* Class B: Exercise performed throwing the elbows to the front
+* Class C: Exercise performed lifting the dumbell only halfway
+* Class D: Exercise performed lowering the dumbell only halfway
+* Class E: Exercise performed throwing the hips to the front
+
+
+#Code
+
+Install all packages, libraries and setting the seed for reproduceability.
+```{r}
+library(caret); library(ggplot2); library(randomForest); library(RCurl); 
+set.seed(3333)
+```
+
+
+##Data
+
+Below the data is extracted from the source.
+```{r}
+TrainURL <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+TestURL <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+```
+
+
+##Fast Data Cleaning
+
+A quick visual check of the raw data shows that missing variables are in the form of (NA,#DIV/0! and "")
+```{r}
+training <- read.csv(text=getURL(TrainURL), na.strings = c("","NA","#DIV/0!"))
+testing <- read.csv(text=getURL(TestURL), na.strings = c("","NA","#DIV/0!"))
+```
+
+The first seven variables are not necessary for the current study
+
+```{r}
+training <-training[,-c(1:7)]
+testing <-testing[,-c(1:7)]
+```
+
+It looks like some columns might have only missing values. All variables with only missing values will be eliminated. 
+
+We will check how the data looks after this step
+
+```{r}
+training<-training[,colSums(is.na(training)) == 0]
+testing <-testing[,colSums(is.na(testing)) == 0]
+#lets confirm with str that the same amount of variables are in the training and testing set
+str(training)
+```
+
+There are a total of 19622 observations and 53 variables. The original file had 160 variables.
+
+## Partitioning of the training data
+
+In order to perform cross-validation, the training data will be partitioned into the following sets:
+- *trainingtrain* (80% of the data)
+- *trainingtest* (20% of the data)
+
+```{r}
+InTrain <- createDataPartition(y=training$classe,p=0.80,list=FALSE)
+trainingtrain <- training[InTrain,]
+trainingtest <- training[-InTrain,]
+```
+
+## Quick data exploration
+
+```{r}
+ qplot(classe, data=trainingtrain)
+```
+
+From the visualization above, we see that the distribution of classes has variablities in the count, but not significant enough to require further exploration.
+
+##Model
+
+A random Forest *(modFit)* of 10 trees will be created.
+
+```{r}
+modFit <- train(classe~., data=trainingtrain, method="rf", ntree=10)
+print(modFit$finalModel)
+```
+
+A visual interpretation of the model looks like would fit well. A cross-validation will be performed to confirm the initial interpretation
+
+
+
+##Cross-Validation
+
+A cross-validation of the random forrest with the testing data *(trainingtest)* is performed below.
+
+```{r}
+pred <- predict(modFit,trainingtest)
+print(confusionMatrix(pred, trainingtest$classe))
+```
+
+The model was 99.21% accurate with 95%CI of (.9888,.9946)
+
+This would be an excellent model to fit into the 20 testing observations
+
+## Fit model
+
+```{r}
+pred2 <- predict(modFit,testing)
+pred2
+```
+
